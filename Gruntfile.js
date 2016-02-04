@@ -27,11 +27,11 @@ module.exports = function(grunt) {
     remote_exists: {
       default_options: {
         options: {
-          filePath: '/remote/path/to/file',
-          touch: true,
+          filePath: null,
+          operation: null,
           connectOpts: {
-            host: 'hostname',
-            port: 22,
+            host: null,
+            port: null,
             username: 'username',
             passphrase: 'passphrase',
             privateKey: 'privateKey'

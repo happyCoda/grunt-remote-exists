@@ -1,7 +1,7 @@
 {
   "name": "grunt-remote-exists",
   "description": "Check if file exists on remote server",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "homepage": "https://github.com/happyCoda/grunt-remote-exists",
   "author": {
     "name": "happyCoda",

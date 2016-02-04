@@ -23,80 +23,159 @@ var grunt = require('grunt');
 */
 
 exports.remote_exists = {
+
   setUp: function (done) {
-    // setup here if necessary
+    this.connectOpts = {
+      host: null,
+      port: null,
+      username: 'username',
+      passphrase: 'passphrase',
+      privateKey: 'privateKey'
+    };
+
+    this.handler = function (opts) {
+      var Client = require('ssh2');
+
+      opts.conn = new Client();
+      opts.assertions = {
+        actual: false,
+        expected: opts.expected,
+      };
+
+      opts.test.expect(opts.expect || 1);
+
+      opts.conn.on('ready', function () {
+
+        opts.conn.sftp(function (err, sftp) {
+          if (err) {
+
+            grunt.fail.warn(err);
+
+          }
+
+          opts.sftp = sftp;
+
+          opts.sftp.exists(opts.filePath, opts.existsCallback.bind(null, opts));
+
+        });
+      })
+      .on('close', opts.connectionCloseCallback.bind(null, opts))
+      .connect(opts.connectOpts);
+    };
+
     done();
   },
 
-  custom_options: function (test) {
-    var connectOpts = null,
-      filePath = '.',
-      touch = false,
-      Client = require('ssh2'),
-      conn,
-      actual,
-      expected = true;
+  check: function (test) {
 
-    conn = new Client();
+    this.handler({
+      test: test,
+      expected: true,
+      connectOpts: this.connectOpts,
+      existsCallback: function (opts, exists) {
 
-    test.expect(1);
+        if (exists) {
 
-    conn.on('ready', function () {
+          opts.assertions.actual = exists;
 
-      grunt.log.writeln('connection :: established');
+          opts.conn.end();
 
-      conn.sftp(function (err, sftp) {
-        if (err) {
+        } else {
 
-          grunt.fail.warn(err);
+          opts.assertions.actual = exists;
 
+          opts.conn.end();
         }
+      },
+      connectionCloseCallback: function (opts) {
 
-        sftp.exists(filePath, function (exists) {
-          var ws;
+        opts.test.equal(opts.assertions.actual, opts.assertions.expected, 'File ' + opts.filePath + ' should exists.');
 
-          if (exists) {
+        opts.test.done();
 
-            grunt.log.writeln('File ' + filePath + ' exists.');
+      }
+    });
+  },
 
-            actual = exists;
+  touch: function (test) {
+    this.handler({
+      test: test,
+      touch: true,
+      connectOpts: this.connectOpts,
+      existsCallback: function (opts, exists) {
 
-            conn.end();
+        var ws;
+
+        if (exists) {
+
+          opts.test.throws(function () { throw new Error('File exists!'); }, Error, 'File ' + opts.filePath + ' should not exists.');
+
+          opts.conn.end();
+
+        } else {
+
+          if (opts.touch) {
+
+            opts.test.doesNotThrow(function () {
+              ws = opts.sftp.createWriteStream(opts.filePath, {flags: 'w', encoding: 'utf-8', mode: parseInt('0777', 8)});
+            }, 'File ' + opts.filePath + ' should be exists.');
+
+            ws.on('close', function () {
+
+              opts.conn.end();
+
+            });
+
+            ws.close();
 
           } else {
+            opts.test.throws(function () { throw new Error('File does not exists and touch flag is omitted'); }, Error, 'File ' + opts.filePath + ' should not exists.');
 
-            grunt.log.writeln('File ' + filePath + ' does not exist.');
-
-            if (touch) {
-
-              ws = sftp.createWriteStream(filePath, {flags: 'w', encoding: 'utf-8', mode: parseInt('0777', 8)});
-
-              ws.on('close', function () {
-
-                grunt.log.writeln('File ' + filePath + ' has been created.');
-
-                sftp.exists(filePath, function (exists) {
-                  actual = exists;
-
-                  conn.end();
-                });
-
-              });
-
-              ws.close();
-
-            }
+            opts.conn.end();
           }
-        });
-      });
-    }).on('close', function () {
+        }
+      },
+      connectionCloseCallback: function (opts) {
 
-      test.equal(actual, expected, 'File ' + filePath + ' should be exists.');
+        opts.test.done();
 
-      test.done();
+      }
+    });
+  },
 
-      grunt.log.writeln('connection :: closed');
+  rm: function (test) {
+    this.handler({
+      test: test,
+      rm: true,
+      connectOpts: this.connectOpts,
+      existsCallback: function (opts, exists) {
 
-    }).connect(connectOpts);
+        if (opts.exists) {
+
+          if (opts.rm) {
+            opts.test.doesNotThrow(function () {
+              opts.sftp.unlink(opts.filePath, function (err) {
+                opts.conn.end();
+              });
+            }, 'File ' + opts.filePath + ' should be exists.');
+          } else {
+            opts.test.throws(function () { throw new Error('Rm flag omitted!'); }, Error, 'File ' + opts.filePath + ' should not exists.');
+
+            opts.conn.end();
+          }
+
+        } else {
+
+          opts.test.throws(function () { throw new Error('File does not exists!'); }, Error, 'File ' + opts.filePath + ' should exists.');
+
+          opts.conn.end();
+        }
+      },
+      connectionCloseCallback: function (opts) {
+
+        opts.test.done();
+
+      }
+    });
   }
 };
