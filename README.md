@@ -26,8 +26,8 @@ In your project's Gruntfile, add a section named `remote_exists` to the data obj
 grunt.initConfig({
   remote_exists: {
     options: {
-      filePath: '.',
-      touch: false,
+      filePath: 'path/to/file',
+      operation: null,
       connectOpts: {
         host: 'hostname',
         port: 22,
@@ -37,7 +37,7 @@ grunt.initConfig({
       }
     },
     your_target: {
-      // Target-specific file lists and/or options go here.
+      // Target-specific options go here.
     },
   },
 });
@@ -47,15 +47,15 @@ grunt.initConfig({
 
 #### filePath
 Type: `String`
-Default value: `'.'`
+Default value: `none`
 
 A path to file on a remote server to check if it exists.
 
-#### touch
-Type: `Boolean`
-Default value: `false`
+#### operation
+Type: `String` of `null`
+Default value: `null`
 
-Boolean flag which tells plugin whether it should create file or not.
+String which tells plugin whether it should create, remove or just check file.
 
 #### connectOpts
 Type: `Object` of `null`
@@ -85,7 +85,7 @@ grunt.initConfig({
 });
 ```
 
-#### Check and write
+#### Write
 If `filePath` does not exist, it will be created since `touch` option is enabled. Checking results will be outputted as well.
 
 ```js
@@ -93,7 +93,28 @@ grunt.initConfig({
   remote_exists: {
     options: {
       filePath: '/remote/path/to/file',
-      touch: true,
+      operation: 'touch',
+      connectOpts: {
+        host: 'hostname',
+        port: 22,
+        username: 'username',
+        passphrase: 'passphrase',
+        privateKey: 'privateKey'
+      }
+    }
+  }
+});
+```
+
+#### Remove
+If `filePath` exists, it will be removed, nothing will be done otherwise. Checking results will be outputted as well.
+
+```js
+grunt.initConfig({
+  remote_exists: {
+    options: {
+      filePath: '/remote/path/to/file',
+      operation: 'rm',
       connectOpts: {
         host: 'hostname',
         port: 22,
@@ -107,4 +128,5 @@ grunt.initConfig({
 ```
 
 ## Release History
-_(Nothing yet)_
+* 2016-02-04   v1.0.0   All logic completely rewritten.
+* 2016-02-03   v0.1.0   First official release.
