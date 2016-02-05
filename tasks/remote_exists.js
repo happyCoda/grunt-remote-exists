@@ -14,7 +14,6 @@ module.exports = function (grunt) {
     var core = {};
 
     core.userOpts = this.options({
-      filePath: null,
       operation: null,
       connectOpts: null
     });
@@ -45,10 +44,44 @@ module.exports = function (grunt) {
       return this;
     };
 
+    core.isFinished = function () {
+      var finished = false;
+
+      if (!this.pathMap) {
+        grunt.fail.warn('No paths map created!');
+      }
+
+      finished = Object.keys(this.pathMap).every(function (key) {
+        return this.pathMap[key] === 1;
+      }, this);
+
+      return finished;
+    };
+
+    core.clearAndOut = function (opts) {
+
+      this.pathMap[opts.filePath] = 1;
+
+      if (this.isFinished()) {
+        opts.conn.end();
+      }
+      
+    };
+
+    core.createPathMap = function (paths) {
+      this.pathMap = {};
+
+      paths.forEach(function (path) {
+        this.pathMap[path] = 0;
+      }, this);
+    };
+
     core.init = function () {
       var operation = this.userOpts.operation;
 
       this.bindAll();
+
+      this.createPathMap(this.sharedOpts.src);
 
       switch (operation) {
         case 'touch':
@@ -60,6 +93,8 @@ module.exports = function (grunt) {
         default:
           this.check();
       }
+
+
     };
 
     core.handler = function (opts) {
@@ -67,25 +102,52 @@ module.exports = function (grunt) {
 
       opts.conn = new Client();
 
-      opts.conn.on('ready', function () {
-
-        grunt.log.writeln('Connection :: established');
-
-        opts.conn.sftp(function (err, sftp) {
-          if (err) {
-
-            grunt.fail.warn(err);
-
-          }
-
-          opts.sftp = sftp;
-
-          opts.sftp.exists(opts.filePath, opts.existsCallback.bind(null, opts));
-
-        });
-      })
-      .on('close', opts.connectionCloseCallback.bind(null, opts))
+      opts.conn
+      .on('ready', this.connectionOpenCallBack.bind(this, opts))
+      .on('close', opts.connectionCloseCallback.bind(this, opts))
       .connect(opts.connectOpts);
+
+    };
+
+    core.connectionOpenCallBack = function (opts) {
+      grunt.log.writeln('Connection :: established');
+
+      opts.conn.sftp(this.sftpCallback.bind(this, opts));
+    };
+
+    core.sftpCallback = function (opts, err, sftp) {
+
+      if (err) {
+
+        grunt.fail.warn(err);
+
+      }
+
+      opts.sftp = sftp;
+
+      opts.src.forEach(function (filePath) {
+        var currentOpts = Object.create(opts);
+
+        currentOpts.filePath = filePath;
+
+        currentOpts.sftp.exists(currentOpts.filePath, currentOpts.existsCallback.bind(this, currentOpts));
+
+      }, this);
+    };
+
+    core.unlinkCallback = function (opts, err) {
+
+      grunt.log.writeln('File ' + opts.filePath + ' has been removed.');
+
+      this.clearAndOut(opts);
+    };
+
+    core.wsCloseCallback = function (opts) {
+
+      grunt.log.writeln('File ' + opts.filePath + ' has been created.');
+
+      this.clearAndOut(opts);
+
     };
 
     core.connectionCloseCallback = function () {
@@ -96,28 +158,34 @@ module.exports = function (grunt) {
 
     };
 
+    core.sharedOpts = {
+      src: this.data.src,
+      connectionCloseCallback: core.connectionCloseCallback
+    };
+
+    core.sharedOpts = core.extend(core.sharedOpts, core.userOpts);
+
     core.check = function () {
 
       var opts = this.extend({
+
         existsCallback: function (opts, exists) {
 
           if (exists) {
 
             grunt.log.writeln('File ' + opts.filePath + ' exists.');
 
-            opts.conn.end();
-
           } else {
 
             grunt.log.writeln('File ' + opts.filePath + ' does not exist.');
 
-            opts.conn.end();
           }
-        },
 
-        connectionCloseCallback: this.connectionCloseCallback
+          this.clearAndOut(opts);
 
-      }, this.userOpts);
+        }
+
+      }, this.sharedOpts);
 
       this.handler(opts);
     };
@@ -125,7 +193,9 @@ module.exports = function (grunt) {
     core.touch = function () {
 
       var opts = this.extend({
+
         touch: true,
+
         existsCallback: function (opts, exists) {
 
           var ws;
@@ -133,7 +203,7 @@ module.exports = function (grunt) {
           if (exists) {
             grunt.log.writeln('File ' + opts.filePath + ' exists.');
 
-            opts.conn.end();
+            this.clearAndOut(opts);
 
           } else {
 
@@ -143,62 +213,51 @@ module.exports = function (grunt) {
 
               ws = opts.sftp.createWriteStream(opts.filePath, {flags: 'w', encoding: 'utf-8', mode: parseInt('0777', 8)});
 
-              ws.on('close', function () {
-
-                grunt.log.writeln('File ' + opts.filePath + ' has been created.');
-
-                opts.conn.end();
-
-              });
+              ws.on('close', this.wsCloseCallback.bind(this, opts));
 
               ws.close();
 
             } else {
 
-              opts.conn.end();
+              this.clearAndOut(opts);
             }
           }
-        },
+        }
 
-        connectionCloseCallback: this.connectionCloseCallback
-
-      }, this.userOpts);
+      }, this.sharedOpts);
 
       this.handler(opts);
     };
 
     core.rm = function () {
       var opts = this.extend({
+
         rm: true,
+
         existsCallback: function (opts, exists) {
 
-          if (opts.exists) {
+          if (exists) {
 
             grunt.log.writeln('File ' + opts.filePath + ' exists.');
 
             if (opts.rm) {
-              opts.sftp.unlink(opts.filePath, function (err) {
 
-                grunt.log.writeln('File ' + opts.filePath + ' has been removed.');
+              opts.sftp.unlink(opts.filePath, this.unlinkCallback.bind(this, opts));
 
-                opts.conn.end();
-              });
             } else {
 
-              opts.conn.end();
+              this.clearAndOut(opts);
             }
 
           } else {
 
             grunt.log.writeln('File ' + opts.filePath + ' does not exist.');
 
-            opts.conn.end();
+            this.clearAndOut(opts);
           }
-        },
+        }
 
-        connectionCloseCallback: this.connectionCloseCallback
-
-      }, this.userOpts);
+      }, this.sharedOpts);
 
       this.handler(opts);
     };

@@ -25,6 +25,7 @@ var grunt = require('grunt');
 exports.remote_exists = {
 
   setUp: function (done) {
+
     this.connectOpts = {
       host: null,
       port: null,
@@ -34,13 +35,15 @@ exports.remote_exists = {
     };
 
     this.handler = function (opts) {
-      var Client = require('ssh2');
+      var Client = require('./mocks/ssh_client_mock');
 
       opts.conn = new Client();
       opts.assertions = {
         actual: false,
         expected: opts.expected,
       };
+
+      opts.filePath = __dirname + '/tmp/secret.txt';
 
       opts.test.expect(opts.expect || 1);
 

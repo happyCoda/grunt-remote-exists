@@ -26,7 +26,6 @@ In your project's Gruntfile, add a section named `remote_exists` to the data obj
 grunt.initConfig({
   remote_exists: {
     options: {
-      filePath: 'path/to/file',
       operation: null,
       connectOpts: {
         host: 'hostname',
@@ -37,7 +36,7 @@ grunt.initConfig({
       }
     },
     your_target: {
-      // Target-specific options go here.
+      src: ['/remote/path/to/file']
     },
   },
 });
@@ -92,7 +91,6 @@ If `filePath` does not exist, it will be created since `touch` option is enabled
 grunt.initConfig({
   remote_exists: {
     options: {
-      filePath: '/remote/path/to/file',
       operation: 'touch',
       connectOpts: {
         host: 'hostname',
@@ -101,6 +99,9 @@ grunt.initConfig({
         passphrase: 'passphrase',
         privateKey: 'privateKey'
       }
+    },
+    default_config: {
+      src: ['/remote/path/to/file']
     }
   }
 });
@@ -113,7 +114,6 @@ If `filePath` exists, it will be removed, nothing will be done otherwise. Checki
 grunt.initConfig({
   remote_exists: {
     options: {
-      filePath: '/remote/path/to/file',
       operation: 'rm',
       connectOpts: {
         host: 'hostname',
@@ -122,11 +122,15 @@ grunt.initConfig({
         passphrase: 'passphrase',
         privateKey: 'privateKey'
       }
+    },
+    default_config: {
+      src: ['/remote/path/to/file']
     }
   }
 });
 ```
 
 ## Release History
+* 2016-02-05   v1.1.0   Tests are rewritten. File removal bug fixed. Multiple file support added.
 * 2016-02-04   v1.0.0   All logic completely rewritten.
 * 2016-02-03   v0.1.0   First official release.
